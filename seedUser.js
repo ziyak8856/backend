@@ -9,7 +9,7 @@ const db = mysql.createConnection({
   database: process.env.DB_NAME,
 });
 
-db.connect((err) => {
+db.connect((er) => {
   if (err) return console.error("Database connection failed:", err);
 
   const email = "admin@example.com";
