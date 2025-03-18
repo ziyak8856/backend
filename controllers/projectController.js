@@ -51,8 +51,11 @@ exports.createProject = async (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?)
     `;
     const [result] = await pool.query(query, [name, mv4, mv6, regmapPath, regmapBinPath, start_fname]);
-
-    res.json({ message: "Project created successfully", projectId: result.insertId });
+    res.json({ 
+      message: "Project created successfully", 
+      projectId: result.insertId,
+      projectName: name 
+    });
   } catch (err) {
     res.status(500).json({ message: "Database error", error: err.message });
   }
