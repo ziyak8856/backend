@@ -122,3 +122,25 @@ exports.getProjects = async (req, res) => {
     res.status(500).json({ message: "Database error", error: err.message });
   }
 };
+
+exports.getProjectById = async (req, res) => {
+  const { projectId } = req.params;
+
+  if (!projectId) {
+      return res.status(400).json({ message: "Project ID is required" });
+  }
+
+  try {
+      const query = `SELECT * FROM project WHERE id = ?`;
+      const [rows] = await pool.query(query, [projectId]);
+
+      if (rows.length === 0) {
+          return res.status(404).json({ message: "Project not found" });
+      }
+
+      res.json(rows[0]); // Return the first project found
+  } catch (err) {
+      console.error("Database error:", err);
+      res.status(500).json({ message: "Database error", error: err.message });
+  }
+};
