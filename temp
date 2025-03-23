@@ -219,3 +219,72 @@ const CreateProject = () => {
 };
 
 export default CreateProject;
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import "../styles/Navbar.css";
+
+const Navbar = ({
+  selectedCustomer,
+  setSelectedCustomer,
+  selectedMode,
+  setSelectedMode,
+  selectedFile,
+}) => {
+  const navigate = useNavigate();
+  const customers = ["Customer A", "Customer B", "Customer C"];
+  const modes = ["Mode 1", "Mode 2", "Mode 3"];
+  const projectName = localStorage.getItem("projectName") || "No Project Selected";
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("projectId");
+    localStorage.removeItem("projectName");
+    navigate("/");
+  };
+
+  return (
+    <nav className="navbar">
+      {/* Project Name */}
+      <div className="project-info">
+        <h2>{projectName}</h2>
+      </div>
+
+      {/* Customer Dropdown */}
+      <select
+        className="navbar-select"
+        value={selectedCustomer || ""}
+        onChange={(e) => setSelectedCustomer(e.target.value)}
+      >
+        <option value="">Select Customer</option>
+        {customers.map((customer) => (
+          <option key={customer} value={customer}>
+            {customer}
+          </option>
+        ))}
+      </select>
+
+      {/* Mode Dropdown */}
+      <select
+        className="navbar-select"
+        value={selectedMode || ""}
+        onChange={(e) => setSelectedMode(e.target.value)}
+      >
+        <option value="">Select Mode</option>
+        {modes.map((mode) => (
+          <option key={mode} value={mode}>
+            {mode}
+          </option>
+        ))}
+      </select>
+
+      {/* Selected File Display */}
+      {selectedFile && <p className="selected-file">Selected File: {selectedFile}</p>}
+
+      {/* Logout Button */}
+      <button className="logout-btn" onClick={handleLogout}>Logout</button>
+    </nav>
+  );
+};
+
+export default Navbar;

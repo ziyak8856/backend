@@ -62,6 +62,57 @@ exports.createProject = async (req, res) => {
 };
 
 
+
+
+exports.uploadRegmap = async (req, res) => {
+  try {
+    const { projectId, name } = req.body;
+   
+    if (!projectId || !name) {
+      return res.status(400).json({ message: "Project ID and name are required" });
+    }
+
+    // **Step 1: Find the Project Folder**
+    const projectDir = path.join(UPLOAD_DIR, name);
+    //console.log(projectDir);
+    if (!fs.existsSync(projectDir)) {
+      return res.status(404).json({ message: "Project directory not found" });
+    }
+    console.log(projectDir);
+    // **Step 2: Remove Existing `.regmap.h` Files**
+    const files = fs.readdirSync(projectDir);
+    files.forEach((file) => {
+      if (file.endsWith(".regmap.h.txt")) {
+        fs.unlinkSync(path.join(projectDir, file));
+      }
+    });
+
+    let regmapPath = "";
+
+   // **Step 3: Save the New Regmap File**
+    if (req.files && req.files.regmap) {
+      const regmapFile = req.files.regmap;
+      regmapPath = path.join(projectDir, regmapFile.name);
+      await regmapFile.mv(regmapPath);
+    } else {
+      return res.status(400).json({ message: "No regmap file uploaded" });
+    }
+    console.log("r"+regmapPath);
+    // **Step 4: Update Database**
+    await pool.query(`UPDATE project SET regmap_path = ? WHERE id = ?`, [regmapPath, projectId]);
+
+    res.json({
+      message: "Regmap updated successfully",
+      projectId: projectId,
+      projectName: name,
+      regmapPath: regmapPath,
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: "Database error", error: err.message });
+  }
+};
+
 // Get all projects
 exports.getProjects = async (req, res) => {
   try {
