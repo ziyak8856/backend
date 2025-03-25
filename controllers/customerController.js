@@ -42,3 +42,19 @@ exports.getCustomersByProject = async (req, res) => {
     res.status(500).json({ message: "Database error", error: err.message });
   }
 };
+exports.getCustomerById = async (req, res) => {
+  try {
+    console.log("customer routes");
+    const { customerId } = req.params;
+    console.log(customerId);
+    const [customer] = await pool.query("SELECT * FROM customer WHERE customer_id = ?", [customerId]);
+
+    if (customer.length === 0) {
+      return res.status(404).json({ message: "Customer not found" });
+    }
+
+    res.json(customer[0]);
+  } catch (err) {
+    res.status(500).json({ message: "Database error", error: err.message });
+  }
+};

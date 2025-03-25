@@ -70,3 +70,53 @@ exports.addSettings = async (req, res) => {
     res.status(500).json({ message: "Database error", error: err.message });
   }
 };
+
+exports.addSetting = async (req, res) => {
+  try {
+    const { customer_id, name, table_name, uniqueArray1 } = req.body;
+    console.log("uniqueArray1:", uniqueArray1);
+
+    if (!customer_id || !name || !table_name) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // **Insert the setting into the database**
+    const settingQuery = "INSERT INTO setting (customer_id, name, table_name) VALUES (?, ?, ?)";
+    const [result] = await pool.query(settingQuery, [customer_id, name, table_name]);
+
+    // Get the inserted setting with only id, name, and table_name
+    const settingId = result.insertId;
+    const settingQuerySelect = "SELECT id, name, table_name FROM setting WHERE id = ?";
+    const [[newSetting]] = await pool.query(settingQuerySelect, [settingId]);
+
+    // **Create the table for the new setting**
+    try {
+      const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS \`${newSetting.table_name}\` (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          Tunning_param VARCHAR(512) DEFAULT NULL
+        )
+      `;
+      await pool.query(createTableQuery);
+    } catch (tableError) {
+      console.error(`Error creating table ${newSetting.table_name}:`, tableError);
+      return res.status(500).json({ message: `Error creating table ${newSetting.table_name}` });
+    }
+
+    // **Insert values into the new table**
+    if (uniqueArray1 && Array.isArray(uniqueArray1) && uniqueArray1.length > 0) {
+      try {
+        const insertQuery = `INSERT INTO \`${newSetting.table_name}\` (Tunning_param) VALUES ?`;
+        const values = uniqueArray1.map((param) => [param]); // Convert array for bulk insert
+        await pool.query(insertQuery, [values]);
+      } catch (insertError) {
+        console.error(`Error inserting values into ${newSetting.table_name}:`, insertError);
+        return res.status(500).json({ message: `Error inserting values into ${newSetting.table_name}` });
+      }
+    }
+
+    res.json({ message: "Setting added successfully", setting: newSetting });
+  } catch (err) {
+    res.status(500).json({ message: "Database error", error: err.message });
+  }
+};
