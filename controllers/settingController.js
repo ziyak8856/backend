@@ -13,7 +13,27 @@ exports.getSettingsByCustomer = async (req, res) => {
     res.status(500).json({ message: "Database error", error: err.message });
   }
 };
+exports.getTableName = async (req, res) => {
+  try {
+    const { settingId } = req.params;
 
+    if (!settingId) {
+      return res.status(400).json({ error: "Setting ID is required" });
+    }
+
+    const query = "SELECT table_name FROM setting WHERE id = ?";
+    const [rows] = await pool.query(query, [settingId]); // Use `.promise()` for async/await
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Table name not found" });
+    }
+
+    res.json({ table_name: rows[0].table_name });
+  } catch (error) {
+    console.error("Error fetching table name:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
 // Add a new setting for a customer
 exports.addSettings = async (req, res) => {
   try {
@@ -120,3 +140,4 @@ exports.addSetting = async (req, res) => {
     res.status(500).json({ message: "Database error", error: err.message });
   }
 };
+ 
