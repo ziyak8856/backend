@@ -25,8 +25,7 @@ exports.getSetFiles = async (req, res) => {
   }
 };
  // Ensure the database connection pool is imported
-
-exports.getTableData = async (req, res) => {
+ exports.getTableData = async (req, res) => {
   const { tableName, columnName } = req.body; // Extract from request body
 
   console.log("Received request for table:", tableName);
@@ -37,12 +36,94 @@ exports.getTableData = async (req, res) => {
   }
 
   try {
-    const query = `SELECT id, Tunning_param, \`${columnName}\` FROM \`${tableName}\``; // Use backticks to prevent SQL syntax issues
-    const [rows] = await pool.query(query); // Use `.query()` for better safety
+    const query = `
+      SELECT id, serial_number, Tunning_param, \`${columnName}\` 
+      FROM \`${tableName}\` 
+      ORDER BY serial_number ASC
+    `;
 
+    const [rows] = await pool.query(query);
+    // console.log("Fetched rows:", rows); 
     res.json({ columnName, rows });
   } catch (error) {
     console.error("Error fetching data:", error);
     res.status(500).json({ error: "Database query failed" });
+  }
+};
+exports.addRow = async (req, res) => {
+  const { tableName, referenceId, position, rowData, defaultValue } = req.body;
+
+  try {
+    // Step 1: Fetch serial_number of the reference row
+    const [refRow] = await pool.query(
+      `SELECT serial_number FROM \`${tableName}\` WHERE id = ?`,
+      [referenceId]
+    );
+    if (refRow.length === 0) {
+      return res.status(404).json({ error: "Reference row not found" });
+    }
+
+    // Step 2: Calculate new serial number
+    let newSerial = refRow[0].serial_number + (position === "below" ? 1 : 0);
+
+    // Step 3: Shift serial_numbers to make space
+    await pool.query(
+      `UPDATE \`${tableName}\` SET serial_number = serial_number + 1 WHERE serial_number >= ?`,
+      [newSerial]
+    );
+
+    // Step 4: Fetch full column list from the table
+    const [columnsInfo] = await pool.query(`SHOW COLUMNS FROM \`${tableName}\``);
+    const allColumns = columnsInfo.map(col => col.Field);
+
+    // Step 5: Prepare full row using rowData + defaultValue
+    const newRow = {};
+    for (const col of allColumns) {
+      if (col === 'id' || col === 'serial_number') continue;
+      newRow[col] = rowData[col] !== undefined ? rowData[col] : defaultValue;
+    }
+
+    // Step 6: Generate insert query
+    const insertCols = Object.keys(newRow).map(col => `\`${col}\``).join(", ");
+    const insertVals = Object.values(newRow);
+    const placeholders = insertVals.map(() => "?").join(", ");
+
+    const [insertResult] = await pool.query(
+      `INSERT INTO \`${tableName}\` (${insertCols}, serial_number) VALUES (${placeholders}, ?)`,
+      [...insertVals, newSerial]
+    );
+
+    // Step 7: Fetch and return the inserted row
+    const [newRowData] = await pool.query(
+      `SELECT * FROM \`${tableName}\` WHERE id = ?`,
+      [insertResult.insertId]
+    );
+
+    res.json({ success: true, newRow: newRowData[0] });
+
+  } catch (error) {
+    console.error("Add row error:", error);
+    res.status(500).json({ error: "Failed to add row" });
+  }
+};
+
+exports.updateRow = async (req, res) => {
+  const { tableName, id, columnName, value } = req.body;
+
+  try {
+    // Update the specified row and column
+    const [updateResult] = await pool.query(
+      `UPDATE \`${tableName}\` SET \`${columnName}\` = ? WHERE id = ?`,
+      [value, id]
+    );
+
+    if (updateResult.affectedRows === 0) {
+      return res.status(404).json({ error: "Row not found" });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Update row error:", error);
+    res.status(500).json({ error: "Failed to update row" });
   }
 };

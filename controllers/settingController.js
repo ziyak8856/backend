@@ -63,6 +63,7 @@ exports.addSettings = async (req, res) => {
         const createTableQuery = `
           CREATE TABLE IF NOT EXISTS \`${setting.table_name}\` (
             id INT AUTO_INCREMENT PRIMARY KEY,
+            serial_number INT NOT NULL,
             Tunning_param VARCHAR(512) DEFAULT NULL
           )
         `;
@@ -71,19 +72,23 @@ exports.addSettings = async (req, res) => {
         console.error(`Error creating table ${setting.table_name}:`, tableError);
       }
     }
-
+    
     // **Second loop: Insert values into tables**
     if (uniqueArray1 && Array.isArray(uniqueArray1) && uniqueArray1.length > 0) {
       for (const setting of newSettings) {
         try {
-          const insertQuery = `INSERT INTO \`${setting.table_name}\` (Tunning_param) VALUES ?`;
-          const values = uniqueArray1.map((param) => [param]); // Convert array for bulk insert
+          const insertQuery = `INSERT INTO \`${setting.table_name}\` (serial_number, Tunning_param) VALUES ?`;
+          
+          // Add serial numbers starting from 1
+          const values = uniqueArray1.map((param, index) => [index + 1, param]);
+    
           await pool.query(insertQuery, [values]);
         } catch (insertError) {
           console.error(`Error inserting values into ${setting.table_name}:`, insertError);
         }
       }
     }
+    
 
     res.json({ message: "Settings added successfully", settings: newSettings });
   } catch (err) {
