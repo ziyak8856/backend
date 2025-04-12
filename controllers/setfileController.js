@@ -52,7 +52,7 @@ exports.getSetFiles = async (req, res) => {
 };
 exports.addRow = async (req, res) => {
   const { tableName, referenceId, position, rowData, defaultValue } = req.body;
-
+   console.log("Received request to add row:", req.body);
   try {
     // Step 1: Fetch serial_number of the reference row
     const [refRow] = await pool.query(
@@ -64,7 +64,7 @@ exports.addRow = async (req, res) => {
     }
 
     // Step 2: Calculate new serial number
-    let newSerial = refRow[0].serial_number + (position === "below" ? 1 : 0);
+    let newSerial = refRow[0].serial_number ;
 
     // Step 3: Shift serial_numbers to make space
     await pool.query(
