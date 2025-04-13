@@ -108,10 +108,44 @@ exports.addRow = async (req, res) => {
 };
 
 exports.updateRow = async (req, res) => {
-  const { tableName, id, columnName, value } = req.body;
+  const { tableName, id, columnName, value, regmapEntry } = req.body;
+  console.log("Received request to update row:", req.body);
 
   try {
-    // Update the specified row and column
+    // Case: Tunning_param + regmapEntry means update all other relevant columns too
+    if (columnName === "Tunning_param" && regmapEntry !== undefined) {
+      const [columnsResult] = await pool.query(`SHOW COLUMNS FROM \`${tableName}\``);
+      const allColumns = columnsResult.map(col => col.Field);
+
+      // Exclude non-editable columns
+      const columnsToUpdate = allColumns.filter(col =>
+        !["id", "serial_number", "Tunning_param"].includes(col)
+      );
+
+      // Construct SET clause
+      const updateFields = ["`Tunning_param` = ?"];
+      const updateValues = [value];
+
+      for (const col of columnsToUpdate) {
+        updateFields.push(`\`${col}\` = ?`);
+        updateValues.push(regmapEntry);
+      }
+
+      updateValues.push(id); // WHERE id = ?
+
+      const [updateResult] = await pool.query(
+        `UPDATE \`${tableName}\` SET ${updateFields.join(", ")} WHERE id = ?`,
+        updateValues
+      );
+
+      if (updateResult.affectedRows === 0) {
+        return res.status(404).json({ error: "Row not found" });
+      }
+
+      return res.json({ success: true, updatedAll: true });
+    }
+
+    // Fallback: just update the one column normally
     const [updateResult] = await pool.query(
       `UPDATE \`${tableName}\` SET \`${columnName}\` = ? WHERE id = ?`,
       [value, id]
@@ -121,9 +155,9 @@ exports.updateRow = async (req, res) => {
       return res.status(404).json({ error: "Row not found" });
     }
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) {
     console.error("Update row error:", error);
-    res.status(500).json({ error: "Failed to update row" });
+    return res.status(500).json({ error: "Failed to update row" });
   }
 };
