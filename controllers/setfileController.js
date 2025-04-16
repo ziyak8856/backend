@@ -160,4 +160,101 @@ exports.updateRow = async (req, res) => {
     console.error("Update row error:", error);
     return res.status(500).json({ error: "Failed to update row" });
   }
+}; // Assuming db.js is in the parent directory
+
+exports.deleteRow = async (req, res) => {
+  const { tableName, rowId } = req.body;
+  console.log("Received request to delete row:", req.body);
+
+  if (!tableName || !rowId) {
+    return res.status(400).json({ success: false, error: "Missing table name or rowId" });
+  }
+
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    // Step 1: Get the serial_number of the row to delete
+    const [rows] = await connection.query(
+      `SELECT serial_number FROM \`${tableName}\` WHERE id = ?`,
+      [rowId]
+    );
+
+    if (rows.length === 0) {
+      await connection.release();
+      return res.status(404).json({ success: false, error: "Row not found" });
+    }
+
+    const deletedSerial = rows[0].serial_number;
+
+    // Step 2: Delete the row
+    const [deleteResult] = await connection.query(
+      `DELETE FROM \`${tableName}\` WHERE id = ?`,
+      [rowId]
+    );
+
+    if (deleteResult.affectedRows === 0) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, error: "Row not found during delete" });
+    }
+
+    // Step 3: Update serial numbers of remaining rows
+    await connection.query(
+      `UPDATE \`${tableName}\` SET serial_number = serial_number - 1 WHERE serial_number > ?`,
+      [deletedSerial]
+    );
+
+    await connection.commit();
+    res.json({ success: true });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Delete row error:", error);
+    res.status(500).json({ success: false, error: "Failed to delete row" });
+  } finally {
+    connection.release();
+  }
+};
+// Mark a file as deleted and drop the corresponding column from the table
+
+exports.markFileAsDeleted = async (req, res) => {
+  const file = req.body;
+
+  if (!file || !file.id || !file.setting_id || !file.name) {
+    return res.status(400).json({ success: false, error: "Missing required file info" });
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // Step 1: Delete from setfile table
+    await connection.query("DELETE FROM setfile WHERE id = ?", [file.id]);
+
+    // Step 2: Get row from setting table
+    const [settingRows] = await connection.query("SELECT * FROM setting WHERE id = ?", [file.setting_id]);
+    if (settingRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, error: "Setting not found" });
+    }
+
+    const setting = settingRows[0];
+    const tableName = setting.table_name; // assumed to be table name
+
+    // Step 3: Alter table to drop the column
+    const columnToDelete = file.name; // e.g., A01
+    const dropQuery = `ALTER TABLE \`${tableName}\` DROP COLUMN \`${columnToDelete}\``;
+
+    await connection.query(dropQuery);
+
+    await connection.commit();
+    res.json({ success: true, message: "File deleted and column dropped", table: tableName, column: columnToDelete });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error("Error in markFileAsDeleted:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  } finally {
+    connection.release();
+  }
 };
