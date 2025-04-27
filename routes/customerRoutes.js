@@ -1,5 +1,5 @@
 const express = require("express");
-const { addCustomers, getCustomersByProject } = require("../controllers/customerController");
+const { addCustomers, getCustomersByProject, getCustomerById } = require("../controllers/customerController");
 const authMiddleware = require("../middlewares/authMiddleware");
 
 const router = express.Router();
@@ -10,5 +10,6 @@ router.post("/", authMiddleware, addCustomers);
 // Get all customers under a specific project
 // console.log("customer routes");
 router.get("/:projectId",authMiddleware, getCustomersByProject);
+router.get("/single/:customerId", getCustomerById);
 
 module.exports = router;

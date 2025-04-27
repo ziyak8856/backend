@@ -5,7 +5,7 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
-// User login
+// User login\\\
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
 
