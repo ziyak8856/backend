@@ -95,7 +95,6 @@ exports.addSettings = async (req, res) => {
     res.status(500).json({ message: "Database error", error: err.message });
   }
 };
-
 exports.addSetting = async (req, res) => {
   try {
     const { customer_id, name, table_name, uniqueArray1 } = req.body;
@@ -109,7 +108,7 @@ exports.addSetting = async (req, res) => {
     const settingQuery = "INSERT INTO setting (customer_id, name, table_name) VALUES (?, ?, ?)";
     const [result] = await pool.query(settingQuery, [customer_id, name, table_name]);
 
-    // Get the inserted setting with only id, name, and table_name
+    // **Get the inserted setting with only id, name, and table_name**
     const settingId = result.insertId;
     const settingQuerySelect = "SELECT id, name, table_name FROM setting WHERE id = ?";
     const [[newSetting]] = await pool.query(settingQuerySelect, [settingId]);
@@ -119,6 +118,7 @@ exports.addSetting = async (req, res) => {
       const createTableQuery = `
         CREATE TABLE IF NOT EXISTS \`${newSetting.table_name}\` (
           id INT AUTO_INCREMENT PRIMARY KEY,
+          serial_number INT NOT NULL,
           Tunning_param VARCHAR(512) DEFAULT NULL
         )
       `;
@@ -131,8 +131,11 @@ exports.addSetting = async (req, res) => {
     // **Insert values into the new table**
     if (uniqueArray1 && Array.isArray(uniqueArray1) && uniqueArray1.length > 0) {
       try {
-        const insertQuery = `INSERT INTO \`${newSetting.table_name}\` (Tunning_param) VALUES ?`;
-        const values = uniqueArray1.map((param) => [param]); // Convert array for bulk insert
+        const insertQuery = `INSERT INTO \`${newSetting.table_name}\` (serial_number, Tunning_param) VALUES ?`;
+        
+        // Add serial numbers starting from 1
+        const values = uniqueArray1.map((param, index) => [index + 1, param]);
+        
         await pool.query(insertQuery, [values]);
       } catch (insertError) {
         console.error(`Error inserting values into ${newSetting.table_name}:`, insertError);
@@ -142,7 +145,7 @@ exports.addSetting = async (req, res) => {
 
     res.json({ message: "Setting added successfully", setting: newSetting });
   } catch (err) {
+    console.error("Error in addSetting:", err);
     res.status(500).json({ message: "Database error", error: err.message });
   }
 };
- 
