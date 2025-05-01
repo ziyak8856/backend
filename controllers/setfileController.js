@@ -10,7 +10,7 @@ exports.getSetFiles = async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      "SELECT id, mode_id, setting_id, name, full_name, created_at FROM setfile WHERE mode_id = ?",
+      "SELECT * FROM setfile WHERE mode_id = ?",
       [mode_id]
     );
 
@@ -256,5 +256,29 @@ exports.markFileAsDeleted = async (req, res) => {
     res.status(500).json({ success: false, error: "Internal server error" });
   } finally {
     connection.release();
+  }
+};
+
+exports.updateSelectedMV = async (req, res) => {
+  const { file_id, selectedmv,selectedCustomer } = req.body;
+  console.log("Received request to update selectedmv:", req.body);
+  if (!file_id || selectedmv === undefined|| selectedCustomer =="") {
+    return res.status(400).json({ message: "file_id and selectedmv are required" });
+  }
+
+  try {
+    const [result] = await pool.query(
+      "UPDATE setfile SET selectedmv = ? WHERE id = ?",
+      [selectedmv, file_id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "File not found" });
+    }
+
+    res.json({ message: "selectedmv updated successfully" });
+  } catch (error) {
+    console.error("Database error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
