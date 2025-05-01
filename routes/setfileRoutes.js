@@ -1,5 +1,5 @@
 const express = require("express");
-const { getSetFiles,getTableData,addRow,updateRow,deleteRow ,markFileAsDeleted} = require("../controllers/setfileController");
+const { getSetFiles,getTableData,addRow,updateRow,deleteRow ,markFileAsDeleted,updateSelectedMV} = require("../controllers/setfileController");
 
 const router = express.Router();
 const authMiddleware = require("../middlewares/authMiddleware");
@@ -11,5 +11,6 @@ router.post("/get-table-data", authMiddleware,getTableData);
 router.post("/add-row", authMiddleware,addRow);
 router.post("/update-row", authMiddleware,updateRow);
 router.post("/delete-row", authMiddleware,deleteRow); 
-router.post("/mark-deleted",authMiddleware,markFileAsDeleted)
+router.post("/mark-deleted",authMiddleware,markFileAsDeleted);
+router.post("/update-mv",authMiddleware,updateSelectedMV)
 module.exports = router;
