@@ -106,10 +106,10 @@ exports.addSetting = async (req, res) => {
 
     await connection.beginTransaction();
 
-    // 🔒 Step 0: Lock customer and setting tables
+    //  Step 0: Lock customer and setting tables
     await connection.query(`LOCK TABLES customer WRITE, setting WRITE`);
 
-    // 🔹 Step 1: Fetch mvvariables
+    //  Step 1: Fetch mvvariables
     const [customerRows] = await connection.query(
       "SELECT mvvariables FROM customer WHERE id = ?",
       [customer_id]
@@ -133,7 +133,7 @@ exports.addSetting = async (req, res) => {
       return res.status(500).json({ message: "Invalid mvvariables format in customer table" });
     }
 
-    // 🔹 Step 2: Insert into setting table
+    //  Step 2: Insert into setting table
     const [result] = await connection.query(
       "INSERT INTO setting (customer_id, name, table_name) VALUES (?, ?, ?)",
       [customer_id, name, table_name]
@@ -146,7 +146,7 @@ exports.addSetting = async (req, res) => {
       [settingId]
     );
 
-    // 🔓 Step 3: Unlock before creating the new table
+    //  Step 3: Unlock before creating the new table
     await connection.query("UNLOCK TABLES");
 
     const createTableQuery = `
@@ -158,7 +158,7 @@ exports.addSetting = async (req, res) => {
     `;
     await connection.query(createTableQuery);
 
-    // 🔒 Step 4: Re-lock customer and setting to re-check mvvariables
+    //  Step 4: Re-lock customer and setting to re-check mvvariables
     await connection.query(`LOCK TABLES customer WRITE, setting WRITE`);
 
     const [recheckRows] = await connection.query(
@@ -176,10 +176,10 @@ exports.addSetting = async (req, res) => {
       return res.status(409).json({ message: "Customer mvvariables changed during operation. Aborted." });
     }
 
-    // 🔓 Step 5: Unlock to insert into the new setting table
+    //  Step 5: Unlock to insert into the new setting table
     await connection.query("UNLOCK TABLES");
 
-    // 🔹 Step 6: Lock the new table and insert default variables
+    //  Step 6: Lock the new table and insert default variables
     await connection.query(`LOCK TABLES \`${newSetting.table_name}\` WRITE`);
 
     if (uniqueArray1 && Array.isArray(uniqueArray1) && uniqueArray1.length > 0) {
@@ -188,7 +188,7 @@ exports.addSetting = async (req, res) => {
       await connection.query(insertQuery, [values]);
     }
 
-    // 🔓 Step 7: Final unlock and commit
+    //  Step 7: Final unlock and commit
     await connection.query("UNLOCK TABLES");
     await connection.commit();
 

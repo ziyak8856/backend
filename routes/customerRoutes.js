@@ -1,5 +1,5 @@
 const express = require("express");
-const { addCustomers, getCustomersByProject, getCustomerById } = require("../controllers/customerController");
+const { addCustomers, getCustomersByProject, getCustomerById ,updateMVHeaderForCustomer} = require("../controllers/customerController");
 const authMiddleware = require("../middlewares/authMiddleware");
 
 const router = express.Router();
@@ -11,5 +11,6 @@ router.post("/", authMiddleware, addCustomers);
 // console.log("customer routes");
 router.get("/:projectId",authMiddleware, getCustomersByProject);
 router.get("/single/:customerId", getCustomerById);
+router.post("/update-mv", updateMVHeaderForCustomer);
 
 module.exports = router;
