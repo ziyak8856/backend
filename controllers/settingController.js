@@ -96,56 +96,110 @@ exports.addSettings = async (req, res) => {
   }
 };
 exports.addSetting = async (req, res) => {
+  const connection = await pool.getConnection();
   try {
-    const { customer_id, name, table_name, uniqueArray1 } = req.body;
-    console.log("uniqueArray1:", uniqueArray1);
+    const { customer_id, name, table_name } = req.body;
 
     if (!customer_id || !name || !table_name) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // **Insert the setting into the database**
-    const settingQuery = "INSERT INTO setting (customer_id, name, table_name) VALUES (?, ?, ?)";
-    const [result] = await pool.query(settingQuery, [customer_id, name, table_name]);
+    await connection.beginTransaction();
 
-    // **Get the inserted setting with only id, name, and table_name**
-    const settingId = result.insertId;
-    const settingQuerySelect = "SELECT id, name, table_name FROM setting WHERE id = ?";
-    const [[newSetting]] = await pool.query(settingQuerySelect, [settingId]);
+    // 🔒 Step 0: Lock customer and setting tables
+    await connection.query(`LOCK TABLES customer WRITE, setting WRITE`);
 
-    // **Create the table for the new setting**
+    // 🔹 Step 1: Fetch mvvariables
+    const [customerRows] = await connection.query(
+      "SELECT mvvariables FROM customer WHERE id = ?",
+      [customer_id]
+    );
+
+    if (customerRows.length === 0) {
+      await connection.rollback();
+      await connection.query("UNLOCK TABLES");
+      return res.status(404).json({ message: "Customer not found" });
+    }
+
+    const originalMvvariables = customerRows[0].mvvariables;
+
+    let uniqueArray1 = [];
     try {
-      const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS \`${newSetting.table_name}\` (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          serial_number INT NOT NULL,
-          Tunning_param VARCHAR(512) DEFAULT NULL
-        )
-      `;
-      await pool.query(createTableQuery);
-    } catch (tableError) {
-      console.error(`Error creating table ${newSetting.table_name}:`, tableError);
-      return res.status(500).json({ message: `Error creating table ${newSetting.table_name}` });
+      uniqueArray1 = JSON.parse(originalMvvariables);
+    } catch (parseErr) {
+      await connection.rollback();
+      await connection.query("UNLOCK TABLES");
+      console.error("Error parsing mvvariables JSON:", parseErr);
+      return res.status(500).json({ message: "Invalid mvvariables format in customer table" });
     }
 
-    // **Insert values into the new table**
-    if (uniqueArray1 && Array.isArray(uniqueArray1) && uniqueArray1.length > 0) {
-      try {
-        const insertQuery = `INSERT INTO \`${newSetting.table_name}\` (serial_number, Tunning_param) VALUES ?`;
-        
-        // Add serial numbers starting from 1
-        const values = uniqueArray1.map((param, index) => [index + 1, param]);
-        
-        await pool.query(insertQuery, [values]);
-      } catch (insertError) {
-        console.error(`Error inserting values into ${newSetting.table_name}:`, insertError);
-        return res.status(500).json({ message: `Error inserting values into ${newSetting.table_name}` });
-      }
+    // 🔹 Step 2: Insert into setting table
+    const [result] = await connection.query(
+      "INSERT INTO setting (customer_id, name, table_name) VALUES (?, ?, ?)",
+      [customer_id, name, table_name]
+    );
+
+    const settingId = result.insertId;
+
+    const [[newSetting]] = await connection.query(
+      "SELECT id, name, table_name FROM setting WHERE id = ?",
+      [settingId]
+    );
+
+    // 🔓 Step 3: Unlock before creating the new table
+    await connection.query("UNLOCK TABLES");
+
+    const createTableQuery = `
+      CREATE TABLE IF NOT EXISTS \`${newSetting.table_name}\` (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        serial_number INT NOT NULL,
+        Tunning_param VARCHAR(512) DEFAULT NULL
+      )
+    `;
+    await connection.query(createTableQuery);
+
+    // 🔒 Step 4: Re-lock customer and setting to re-check mvvariables
+    await connection.query(`LOCK TABLES customer WRITE, setting WRITE`);
+
+    const [recheckRows] = await connection.query(
+      "SELECT mvvariables FROM customer WHERE id = ?",
+      [customer_id]
+    );
+
+    const latestMvvariables = recheckRows[0]?.mvvariables;
+
+    if (latestMvvariables !== originalMvvariables) {
+      // Conflict detected, rollback and clean up
+      await connection.query("UNLOCK TABLES");
+      await connection.query(`DROP TABLE IF EXISTS \`${newSetting.table_name}\``);
+      await connection.rollback();
+      return res.status(409).json({ message: "Customer mvvariables changed during operation. Aborted." });
     }
+
+    // 🔓 Step 5: Unlock to insert into the new setting table
+    await connection.query("UNLOCK TABLES");
+
+    // 🔹 Step 6: Lock the new table and insert default variables
+    await connection.query(`LOCK TABLES \`${newSetting.table_name}\` WRITE`);
+
+    if (uniqueArray1 && Array.isArray(uniqueArray1) && uniqueArray1.length > 0) {
+      const insertQuery = `INSERT INTO \`${newSetting.table_name}\` (serial_number, Tunning_param) VALUES ?`;
+      const values = uniqueArray1.map((param, index) => [index + 1, param]);
+      await connection.query(insertQuery, [values]);
+    }
+
+    // 🔓 Step 7: Final unlock and commit
+    await connection.query("UNLOCK TABLES");
+    await connection.commit();
 
     res.json({ message: "Setting added successfully", setting: newSetting });
+
   } catch (err) {
+    await connection.rollback();
+    await connection.query("UNLOCK TABLES");
     console.error("Error in addSetting:", err);
     res.status(500).json({ message: "Database error", error: err.message });
+  } finally {
+    connection.release();
   }
 };
